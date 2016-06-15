@@ -1,0 +1,134 @@
+heat_template_version: 2013-05-23
+
+description: Simple template to deploy a single compute instance
+
+parameters:
+  image:
+    type: string
+    label: Image name or ID
+    description: Image to be used for compute instance
+    default: Cirros
+  flavor:
+    type: string
+    label: Flavor
+    description: Type of instance (flavor) to be used
+    default: m1.tiny
+  key:
+    type: string
+    label: Key name
+    description: Name of key-pair to be used for compute instance
+    default: my_key
+ # private_network:
+  #  type: string
+   # label: Private network name or ID
+    #description: Network to attach instance to.
+    #default: private-net
+ # private_network1:
+  #  type: string
+   # label: Private network name or ID
+    #description: Network to attach instance to.
+    #default: private-net1
+  manager_net_cidr:
+     type: string
+     label: cidr
+     description: cidr value during connection
+     default: "10.8.1.0/24"
+  
+  manager_net_cidr1:
+     type: string
+     label: cidr
+     description: cidr value during connection
+     default: "10.8.2.0/24"
+
+resources:
+
+  private_net1:
+    type: OS::Neutron::Net
+
+  private_net2:
+   type: OS::Neutron::Net
+ 
+  public_net:
+   type: OS::Neutron::Net
+
+  private_subnet1:
+    type: OS::Neutron::Subnet
+    properties:
+       network_id: { get_resource: private_net1 }
+       cidr: { get_param: manager_net_cidr }
+       dns_nameservers: [ "8.8.8.8", "8.8.4.4" ]
+       ip_version: 4
+
+  private_subnet2:
+    type: OS::Neutron::Subnet
+    properties:
+      network_id: { get_resource: private_net2 }
+      cidr: { get_param: manager_net_cidr1 }
+      dns_nameservers: [ "8.8.8.8", "8.8.4.4" ]
+      ip_version: 4
+ 
+  router1:
+     type: OS::Neutron::Router
+
+  router1_interface:
+    type: OS::Neutron::RouterInterface
+    properties:
+       router_id: { get_resource: router1 }
+       subnet: { get_resource: private_subnet1 }
+ 
+  router2_interface:
+    type: OS::Neutron::RouterInterface
+    properties:
+      router_id: { get_resource: router1 }
+      subnet: { get_resource: private_subnet2 }
+
+
+ 
+  private_port1:
+    type: OS::Neutron::Port
+    properties:
+      network_id: { get_resource: private_net1 }
+      fixed_ips:
+        - subnet_id: { get_resource: private_subnet1 }
+  
+  private_port2:
+    type: OS::Neutron::Port
+    properties:
+      network_id: { get_resource: private_net2 }
+      fixed_ips:
+        - subnet_id: { get_resource: private_subnet2 }
+
+  floating_ip1:
+     type: OS::Neutron::FloatingIP
+     properties:
+       floating_network_id: { get_resource: public_net }
+       port_id: { get_resource: private_port1 }
+       router_id: { get_resource: router1 }
+
+
+  floating_ip2:
+     type: OS::Neutron::FloatingIP
+     properties:
+       floating_network_id: { get_resource: public_net }
+       port_id: { get_resource: private_port2 }
+       router_id: {  get_resource: router1 }
+
+  my_instance1:
+    type: OS::Nova::Server
+    properties:
+      image: { get_param: image }
+      flavor: { get_param: flavor }
+      key_name: { get_param: key }
+      networks:
+        - port: { get_resource: private_port1 }
+
+  my_instance2:
+   type: OS::Nova::Server
+   properties:
+      image: { get_param: image }
+      flavor: { get_param: flavor }
+      key_name: { get_param: key }
+      networks:
+        - port: { get_resource: private_port2 }
+
+ 
